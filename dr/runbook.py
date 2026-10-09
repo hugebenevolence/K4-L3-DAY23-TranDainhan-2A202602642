@@ -33,24 +33,99 @@ import httpx
 
 sys.path.insert(0, ".")
 from dr import failover as fo  # noqa: E402
+from dr.health_checker import probe  # noqa: E402
 
 LOG = pathlib.Path("reports/runbook-run.jsonl")
 URL = {"a": "http://127.0.0.1:8001", "b": "http://127.0.0.1:8002"}
 
 
 def step(n, name, **kw):
-    """TODO: ghi 1 dòng {ts, iso, step, name, ...} vào LOG."""
-    raise NotImplementedError
+    event = {"ts": time.time(), "iso": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+             "step": n, "name": name, **kw}
+    LOG.parent.mkdir(parents=True, exist_ok=True)
+    with LOG.open("a", encoding="utf-8") as log:
+        log.write(json.dumps(event) + "\n")
+    return event
 
 
 def confirm(auto: bool, msg: str) -> bool:
-    """TODO: auto=True -> True; ngược lại hỏi y/N. Đừng bỏ hàm này đi."""
-    raise NotImplementedError
+    return auto or input(f"{msg} [y/N] ").strip().lower() == "y"
 
 
 def run(primary: str, target: str, backend: str, auto: bool) -> dict:
-    """TODO: 7 bước ở trên."""
-    raise NotImplementedError
+    if primary not in URL or target not in URL or primary == target:
+        raise ValueError("primary and target must be different valid regions")
+    started = time.time()
+    failed = 0
+    for _ in range(3):
+        ready, reason = probe(primary, 2)
+        if ready:
+            failed = 0
+        else:
+            failed += 1
+        if failed < 3:
+            time.sleep(0.5)
+    target_ready, target_reason = probe(target, 2)
+    step(1, "xac_nhan_outage", primary=primary, consecutive_fails=failed,
+         reason=reason, target_ready=target_ready, target_reason=target_reason)
+    if failed < 3:
+        return {"ok": False, "error": f"region-{primary} outage not confirmed"}
+    if not confirm(auto, f"Fail over region-{primary} to region-{target}?"):
+        return {"ok": False, "error": "operator declined cutover"}
+
+    outage_ts = _latest_outage_ts(primary)
+    if outage_ts is not None and pathlib.Path("reports/health-events.jsonl").exists():
+        deadline = time.monotonic() + 40
+        while time.monotonic() < deadline:
+            events = [json.loads(line) for line in pathlib.Path("reports/health-events.jsonl").read_text().splitlines()]
+            if any(e.get("region") == primary and e.get("to") == "UNHEALTHY"
+                   and e.get("ts", 0) >= outage_ts for e in events):
+                break
+            time.sleep(0.5)
+
+    incident = step(2, "thong_bao_incident", primary=primary,
+                    outage_ts=outage_ts, operator_notified_ts=time.time())
+    result = fo.failover(target, backend, wait=60)
+    step(3, "scale_gpu_pool", ok=result["ok"], target=target)
+    state = result.get("state", {})
+    step(4, "verify_state_replica", count=state.get("count"), weights=state.get("weights"),
+         embed_model_version=result.get("embed_model_version"), docs_lost=result.get("docs_lost"))
+    step(5, "dns_cutover", ok=result["ok"], active_region=result.get("active_region"))
+    if not result["ok"]:
+        step(6, "verify_golden_signals", ok=False, error=result.get("error"))
+        step(7, "post_incident", elapsed_s=round(time.time() - started, 2),
+             outcome="failover_aborted", measure_command="python tools/measure_rto.py --loadgen reports/drill-2-withdr.jsonl")
+        return result
+
+    latencies = []
+    errors = 0
+    for _ in range(10):
+        t = time.monotonic()
+        try:
+            response = httpx.get(f"{URL[target]}/v1/infer", timeout=3)
+            errors += response.status_code != 200
+        except httpx.HTTPError:
+            errors += 1
+        latencies.append((time.monotonic() - t) * 1000)
+    p95 = round(sorted(latencies)[9], 1)
+    error_rate = errors / 10
+    step(6, "verify_golden_signals", requests=10, p95_latency_ms=p95,
+         error_rate=error_rate, ok=errors == 0)
+    step(7, "post_incident", elapsed_s=round(time.time() - started, 2),
+         outcome="cutover_complete", incident_ts=incident["ts"],
+         measure_command="python tools/measure_rto.py --loadgen reports/drill-2-withdr.jsonl")
+    result.update(p95_latency_ms=p95, error_rate=error_rate)
+    return result
+
+
+def _latest_outage_ts(region: str):
+    path = pathlib.Path("chaos/chaos-events.jsonl")
+    if path.exists():
+        for line in reversed(path.read_text().splitlines()):
+            event = json.loads(line)
+            if event.get("action") == "kill" and event.get("region") == region:
+                return event["ts"]
+    return None
 
 
 if __name__ == "__main__":

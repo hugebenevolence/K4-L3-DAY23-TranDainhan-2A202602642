@@ -35,13 +35,71 @@ LOG = pathlib.Path("reports/failover-events.jsonl")
 
 
 def emit(**kw):
-    """TODO: append 1 dòng JSONL có ts + iso vào LOG, và print ra stdout."""
-    raise NotImplementedError
+    """Append one timestamped failover event."""
+    event = {"ts": time.time(), "iso": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), **kw}
+    LOG.parent.mkdir(parents=True, exist_ok=True)
+    with LOG.open("a", encoding="utf-8") as log:
+        log.write(json.dumps(event) + "\n")
+    print(json.dumps(event))
+    return event
+
+
+def state_of(region: str) -> dict:
+    return httpx.get(f"{URL[region]}/v1/state", timeout=2).json()
 
 
 def failover(target: str, backend: str, wait: float) -> dict:
-    """TODO: 5 bước ở trên, đúng thứ tự."""
-    raise NotImplementedError
+    """Restore and warm the target before changing the edge pointer."""
+    if target not in URL or wait <= 0:
+        raise ValueError("invalid target or wait")
+    result = {"ok": False, "target": target}
+    step = "1_verify_target"
+    try:
+        before = state_of(target)
+        emit(step=step, target=target, state=before)
+
+        step = "2_restore_snapshot"
+        meta = snapshot.get(target, backend)
+        primary = "b" if target == "a" else "a"
+        loss = snapshot.rpo(pathlib.Path(f"state/region-{primary}/vectors.sqlite"),
+                            pathlib.Path(f"state/region-{target}/vectors.sqlite"))
+        emit(step=step, target=target, snapshot_at=meta.get("snapshot_at"),
+             embed_model_version=meta.get("embed_model_version"), **loss)
+        result.update(loss)
+        result["embed_model_version"] = meta.get("embed_model_version")
+
+        step = "3_scale_pool"
+        pool = pathlib.Path(f"state/region-{target}/pool_state")
+        pool.parent.mkdir(parents=True, exist_ok=True)
+        pool.write_text("full", encoding="utf-8")
+        emit(step=step, target=target, pool_state="full")
+
+        step = "4_wait_ready"
+        started = time.monotonic()
+        deadline = started + wait
+        while time.monotonic() < deadline:
+            try:
+                response = httpx.get(f"{URL[target]}/readyz", timeout=min(2, max(0.1, deadline - time.monotonic())))
+                if response.status_code == 200:
+                    break
+            except httpx.HTTPError:
+                pass
+            time.sleep(min(0.5, max(0.0, deadline - time.monotonic())))
+        else:
+            raise TimeoutError(f"region-{target} did not become ready within {wait}s")
+        emit(step=step, target=target, waited_s=round(time.monotonic() - started, 2))
+        ready_state = state_of(target)
+
+        step = "5_dns_cutover"
+        active = pathlib.Path("edge/active_region")
+        active.parent.mkdir(parents=True, exist_ok=True)
+        active.write_text(target, encoding="utf-8")
+        emit(step=step, target=target, active_region=target)
+        result.update(ok=True, state=ready_state, active_region=target)
+    except (Exception, SystemExit) as exc:
+        emit(step=step, target=target, ok=False, error=f"{type(exc).__name__}: {exc}")
+        result["error"] = f"{type(exc).__name__}: {exc}"
+    return result
 
 
 if __name__ == "__main__":

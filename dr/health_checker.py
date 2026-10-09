@@ -29,13 +29,43 @@ URL = {"a": "http://127.0.0.1:8001", "b": "http://127.0.0.1:8002"}
 
 
 def probe(region: str, timeout: float) -> tuple[bool, str]:
-    """TODO: trả về (ready, reason). Timeout PHẢI có — netblock làm request treo mãi."""
-    raise NotImplementedError
+    """Check serving readiness, including data and model state."""
+    try:
+        response = httpx.get(f"{URL[region]}/readyz", timeout=timeout)
+        if response.status_code == 200:
+            return True, "ready"
+        body = response.json()
+        return False, ", ".join(body.get("reasons", [])) or f"HTTP {response.status_code}"
+    except (httpx.HTTPError, ValueError) as exc:
+        return False, type(exc).__name__
 
 
 def run(interval: float, timeout: float, threshold: int, duration: float, out: pathlib.Path):
-    """TODO: vòng lặp poll + phát hiện transition + ghi JSONL."""
-    raise NotImplementedError
+    """Poll both regions and record only readiness transitions."""
+    if interval <= 0 or timeout <= 0 or threshold < 1 or duration < 0:
+        raise ValueError("interval/timeout/threshold must be positive; duration nonnegative")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    state = {region: "HEALTHY" for region in URL}
+    failures = {region: 0 for region in URL}
+    deadline = time.monotonic() + duration
+    with out.open("a", encoding="utf-8") as log:
+        while time.monotonic() < deadline:
+            started = time.monotonic()
+            for region in URL:
+                ready, reason = probe(region, timeout)
+                failures[region] = 0 if ready else failures[region] + 1
+                next_state = "HEALTHY" if ready else "UNHEALTHY"
+                if not ready and failures[region] < threshold:
+                    continue
+                if state[region] != next_state:
+                    state[region] = next_state
+                    event = {"ts": time.time(), "event": "state_change", "region": region,
+                             "to": next_state, "reason": reason, "interval_s": interval,
+                             "threshold": threshold, "consecutive_fails": failures[region]}
+                    log.write(json.dumps(event) + "\n")
+                    log.flush()
+            time.sleep(min(max(0.0, interval - (time.monotonic() - started)),
+                           max(0.0, deadline - time.monotonic())))
 
 
 if __name__ == "__main__":
