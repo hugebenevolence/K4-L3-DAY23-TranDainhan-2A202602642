@@ -1,0 +1,69 @@
+{
+  "seed": 23,
+  "runs": [
+    {
+      "run": 1,
+      "mode": "netblock",
+      "kill_delay_s": 6.27,
+      "rto_s": 10.6,
+      "rpo_s": 0.0,
+      "docs_lost": 0,
+      "failed_requests": 5,
+      "valid": true,
+      "warnings": []
+    },
+    {
+      "run": 2,
+      "mode": "stop",
+      "kill_delay_s": 6.59,
+      "rto_s": 8.1,
+      "rpo_s": 0.0,
+      "docs_lost": 0,
+      "failed_requests": 16,
+      "valid": true,
+      "warnings": []
+    },
+    {
+      "run": 3,
+      "mode": "netblock",
+      "kill_delay_s": 5.39,
+      "rto_s": 10.2,
+      "rpo_s": 0.0,
+      "docs_lost": 0,
+      "failed_requests": 5,
+      "valid": true,
+      "warnings": []
+    },
+    {
+      "run": 4,
+      "mode": "stop",
+      "kill_delay_s": 5.58,
+      "rto_s": 6.9,
+      "rpo_s": 0.0,
+      "docs_lost": 0,
+      "failed_requests": 13,
+      "valid": true,
+      "warnings": []
+    },
+    {
+      "run": 5,
+      "mode": "stop",
+      "kill_delay_s": 6.33,
+      "rto_s": 9.4,
+      "rpo_s": 0.0,
+      "docs_lost": 0,
+      "failed_requests": 18,
+      "valid": true,
+      "warnings": []
+    }
+  ],
+  "mean_rto_s": 9.04,
+  "sample_stddev_rto_s": 1.53,
+  "config": {
+    "health_interval_s": 2,
+    "threshold": 3,
+    "warmup_s": 2,
+    "edge_ttl_s": 3,
+    "traffic_duration_s": 36
+  }
+}

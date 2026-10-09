@@ -1,0 +1,11 @@
+{
+  "backend": "real_minio",
+  "fs_put_ms": 28.7,
+  "fs_get_ms": 20.82,
+  "minio_put_ms": 172.45,
+  "minio_get_ms": 78.96,
+  "embed_model_version": "embed-model=vi-e5-base@v3",
+  "failover_ok": true,
+  "served_by": "b",
+  "verified_requests": 10
+}

@@ -27,5 +27,10 @@ __pycache__/
 .venv/
 venv/
 
+# Terraform local provider cache/state (keep .terraform.lock.hcl)
+.terraform/
+*.tfstate
+*.tfstate.backup
+
 # OS
 .DS_Store

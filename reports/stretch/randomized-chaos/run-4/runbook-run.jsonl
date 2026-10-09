@@ -1,0 +1,7 @@
+{"ts": 1791553283.3085964, "iso": "2026-10-09T13:41:23Z", "step": 1, "name": "xac_nhan_outage", "primary": "a", "consecutive_fails": 3, "reason": "ConnectError", "target_ready": false, "target_reason": "pool_state=warm, model_weights_missing, vector_db_empty(count=0)"}
+{"ts": 1791553286.31331, "iso": "2026-10-09T13:41:26Z", "step": 2, "name": "thong_bao_incident", "primary": "a", "outage_ts": 1791553281.8427856, "operator_notified_ts": 1791553286.3133066}
+{"ts": 1791553288.4709113, "iso": "2026-10-09T13:41:28Z", "step": 3, "name": "scale_gpu_pool", "ok": true, "target": "b"}
+{"ts": 1791553288.4709876, "iso": "2026-10-09T13:41:28Z", "step": 4, "name": "verify_state_replica", "count": 200, "weights": true, "embed_model_version": "embed-model=vi-e5-base@v3", "docs_lost": 0}
+{"ts": 1791553288.471051, "iso": "2026-10-09T13:41:28Z", "step": 5, "name": "dns_cutover", "ok": true, "active_region": "b"}
+{"ts": 1791553288.5991917, "iso": "2026-10-09T13:41:28Z", "step": 6, "name": "verify_golden_signals", "requests": 10, "p95_latency_ms": 16.9, "error_rate": 0.0, "ok": true}
+{"ts": 1791553288.5994356, "iso": "2026-10-09T13:41:28Z", "step": 7, "name": "post_incident", "elapsed_s": 6.43, "outcome": "cutover_complete", "incident_ts": 1791553286.31331, "measure_command": "python tools/measure_rto.py --loadgen reports/drill-2-withdr.jsonl"}

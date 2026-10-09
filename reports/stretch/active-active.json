@@ -1,0 +1,12 @@
+{
+  "requests": 20,
+  "served_by": {
+    "a": 10,
+    "b": 10
+  },
+  "errors": 0,
+  "conflict_winner": "b-7",
+  "retained_conflicts": [
+    "a-7"
+  ]
+}

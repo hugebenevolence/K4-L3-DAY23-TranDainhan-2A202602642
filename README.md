@@ -69,6 +69,7 @@ scripts/    up_bare.sh / down_bare.sh — start/stop the stack without Docker.
 |---|---|
 | **[GUIDE.md](GUIDE.md)** | Full 2-hour walkthrough — setup, baseline, attack, containment, proof |
 | **[RUBRIC.md](RUBRIC.md)** | Grading criteria, hard-fail conditions, and exact verification commands |
+| **[reports/stretch/README.md](reports/stretch/README.md)** | Six optional extensions, commands, measured results, and DR maturity assessment |
 
 ## Safety Notes
 
